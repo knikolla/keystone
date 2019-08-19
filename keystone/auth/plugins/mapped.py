@@ -269,6 +269,12 @@ def handle_unscoped_token(auth_payload, resource_api, federation_api,
 
             user_id = user['id']
             group_ids = mapped_properties['group_ids']
+            for group_id in group_ids:
+                identity_api.handle_expiring_group_memberships_for_user(
+                    user_id,
+                    identity_provider,
+                    group_ids
+                )
             response_data = build_ephemeral_user_context(
                 user, mapped_properties, identity_provider, protocol)
         else:

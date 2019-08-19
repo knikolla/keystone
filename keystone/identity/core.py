@@ -1436,6 +1436,10 @@ class Manager(manager.Manager):
         PROVIDERS.shadow_users_api.set_last_active_at(user_dict['id'])
         return user_dict
 
+    def handle_expiring_group_memberships_for_user(self, user, idp_id,
+                                                   group_ids):
+        PROVIDERS
+
 
 class MappingManager(manager.Manager):
     """Default pivot point for the ID Mapping backend."""

@@ -263,7 +263,37 @@ class Identity(base.IdentityDriverBase):
             raise exception.PasswordAgeValidationError(
                 min_age_days=min_age_days, days_left=days_left)
 
-    def add_user_to_group(self, user_id, group_id):
+    def _add_user_to_group_expiring(self, user_id, group_id):
+        def get_federated_user():
+            with sql.session_for_read() as session:
+                query = session.query(model.FederatedUser)
+                query = query.filter_by(user_id=user_id)
+                rv = query.first()
+                if not rv:
+                    # Note(knikolla): This shouldn't really ever happen, since
+                    # this requires the user to already be logged in.
+                    raise exception.UserNotFound()
+                return rv
+
+        with sql.session_for_write() as session:
+            self.get_group(group_id)
+            user = get_federated_user()
+            query = session.query(model.ExpiringUserGroupMembership)
+            query = query.filter_by(user_id=user_id)
+            query = query.filter_by(group_id=group_id)
+            rv = query.first()
+
+            if rv:
+                rv.last_verified = datetime.datetime.utcnow()
+            else:
+                session.add(model.ExpiringUserGroupMembership(
+                    user_id=user_id,
+                    group_id=group_id,
+                    idp_id=user.idp_id,
+                    last_verified=datetime.datetime.utcnow()
+                ))
+
+    def _add_user_to_group(self, user_id, group_id):
         with sql.session_for_write() as session:
             self.get_group(group_id)
             self.get_user(user_id)
@@ -276,6 +306,11 @@ class Identity(base.IdentityDriverBase):
 
             session.add(model.UserGroupMembership(user_id=user_id,
                                                   group_id=group_id))
+
+    def add_user_to_group(self, user_id, group_id, expiring=False):
+        if expiring:
+            return self._add_user_to_group_expiring(user_id, group_id)
+        return self._add_user_to_group(user_id, group_id)
 
     def check_user_in_group(self, user_id, group_id):
         with sql.session_for_read() as session:
